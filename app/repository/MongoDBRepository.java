@@ -6,6 +6,7 @@ import models.Hero;
 import models.ItemCount;
 import models.YearAndUniverseStat;
 import org.bson.Document;
+import play.libs.Json;
 import utils.HeroSamples;
 import utils.*;
 
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.stream.Collectors;
 
 @Singleton
 public class MongoDBRepository {
@@ -30,7 +32,6 @@ public class MongoDBRepository {
 
     public CompletionStage<Optional<Hero>> heroById(String heroId) {
 //        return HeroSamples.staticHero(heroId);
-
          String query = "{id: \"" + heroId + "\"}";
          Document document = Document.parse(query);
          return ReactiveStreamsUtils.fromSinglePublisher(heroesCollection.find(document).first())
@@ -63,6 +64,7 @@ public class MongoDBRepository {
 
 
     public CompletionStage<List<ItemCount>> topPowers(int top) {
+        //protips: unwind sur les tags pour dupliquer le comics autant de fois qu'il y a le hero dedans puis group by pour faire du sale
         return CompletableFuture.completedFuture(new ArrayList<>());
         // TODO
         // List<Document> pipeline = new ArrayList<>();
@@ -79,19 +81,25 @@ public class MongoDBRepository {
     }
 
     public CompletionStage<List<ItemCount>> byUniverse() {
-        return CompletableFuture.completedFuture(new ArrayList<>());
-        // TODO
-        // List<Document> pipeline = new ArrayList<>();
-        // return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
-        //         .thenApply(documents -> {
-        //             return documents.stream()
-        //                     .map(Document::toJson)
-        //                     .map(Json::parse)
-        //                     .map(jsonNode -> {
-        //                         return new ItemCount(jsonNode.findPath("_id").asText(), jsonNode.findPath("count").asInt());
-        //                     })
-        //                     .collect(Collectors.toList());
-        //         });
+//        return CompletableFuture.completedFuture(new ArrayList<>());
+         List<Document> pipeline = new ArrayList<>();
+         String query = "{\n" +
+                 "        $group: {\n" +
+                 "            _id: \"$identity.universe\",\n" +
+                 "            count: { $sum: 1}\n" +
+                 "        }\n" +
+                 "    }";
+         pipeline.add(Document.parse(query));
+         return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
+                 .thenApply(documents -> {
+                     return documents.stream()
+                             .map(Document::toJson)
+                             .map(Json::parse)
+                             .map(jsonNode -> {
+                                 return new ItemCount(jsonNode.findPath("_id").asText(), jsonNode.findPath("count").asInt());
+                             })
+                             .collect(Collectors.toList());
+                 });
     }
 
 }
