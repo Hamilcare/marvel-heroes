@@ -8,6 +8,13 @@ const dbName = "marvel";
 const collectionName = "heroes";
 //const bulkSize = 1000;
 
+const safeSplit = string => !string ? [] : string.split(',')
+const safeParseInt = string => {
+    const number = Number.parseInt(string)
+    if (Number.isNaN(number))
+        return undefined
+    return number
+}
 
 const insertHeroes = (db, callback) => {
     const collection = db.collection(collectionName)
@@ -23,35 +30,35 @@ const insertHeroes = (db, callback) => {
                 backgroundImageUrl: data.backgroundImageUrl,
                 externalLink: data.externalLink,
                 identity: {
-                    secretIdentities: data.secretIdentities.split(','),
+                    secretIdentities: safeSplit(data.secretIdentities),
                     birthPlace: data.birthPlace,
                     occupation: data.occupation,
-                    aliases: data.aliases.split(','),
+                    aliases: safeSplit(data.aliases),
                     alignment: data.alignment,
                     firstAppearance: data.firstAppearance,
-                    yearAppearance: parseInt(data.yearAppearance),
+                    yearAppearance: safeParseInt(data.yearAppearance),
                     universe: data.universe
                 },
                 appearance: {
                     gender: data.gender,
                     race: data.race,
-                    height: parseInt(data.height),
-                    weight: parseInt(data.weight),
+                    height: safeParseInt(data.height),
+                    weight: safeParseInt(data.weight),
                     eyeColor: data.eyeColor,
                     hairColor: data.hairColor
                 },
-                teams: data.teams.split(','),
-                powers: data.powers.split(','),
-                partners: data.partners.split(','),
+                teams: safeSplit(data.teams),
+                powers: safeSplit(data.powers),
+                partners: safeSplit(data.partners),
                 skills: {
-                    intelligence: parseInt(data.intelligence),
-                    strength: parseInt(data.strength),
-                    speed: parseInt(data.speed),
-                    durability: parseInt(data.durability),
-                    power: parseInt(data.power),
-                    combat: parseInt(data.combat)
+                    intelligence: safeParseInt(data.intelligence),
+                    strength: safeParseInt(data.strength),
+                    speed: safeParseInt(data.speed),
+                    durability: safeParseInt(data.durability),
+                    power: safeParseInt(data.power),
+                    combat: safeParseInt(data.combat)
                 },
-                creators: data.creators.split(',')
+                creators: safeSplit(data.creators)
             })
         })
         .on('end', () => {
