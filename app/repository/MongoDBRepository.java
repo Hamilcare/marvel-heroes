@@ -1,5 +1,7 @@
 package repository;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.mongodb.reactivestreams.client.MongoCollection;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import models.Hero;
@@ -13,11 +15,13 @@ import utils.*;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Singleton
 public class MongoDBRepository {
@@ -39,27 +43,52 @@ public class MongoDBRepository {
     }
 
     public CompletionStage<List<YearAndUniverseStat>> countByYearAndUniverse() {
-        return CompletableFuture.completedFuture(new ArrayList<>());
-        // TODO
-        //List<Document> pipeline = new ArrayList<>();
-        //return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
-        //        .thenApply(documents -> {
-        //            return documents.stream()
-        //                            .map(Document::toJson)
-        //                            .map(Json::parse)
-        //                            .map(jsonNode -> {
-        //                                int year = jsonNode.findPath("_id").findPath("yearAppearance").asInt();
-        //                                ArrayNode byUniverseNode = (ArrayNode) jsonNode.findPath("byUniverse");
-        //                                Iterator<JsonNode> elements = byUniverseNode.elements();
-        //                                Iterable<JsonNode> iterable = () -> elements;
-        //                                List<ItemCount> byUniverse = StreamSupport.stream(iterable.spliterator(), false)
-        //                                        .map(node -> new ItemCount(node.findPath("universe").asText(), node.findPath("count").asInt()))
-        //                                        .collect(Collectors.toList());
-        //                                return new YearAndUniverseStat(year, byUniverse);
-        //
-        //                            })
-        //                            .collect(Collectors.toList());
-        //        });
+//        return CompletableFuture.completedFuture(new ArrayList<>());
+
+        List<Document> pipeline = new ArrayList<>();
+        pipeline.add(Document.parse("{\n" +
+                "        $match: { \"identity.yearAppearance\": { $ne: null } }\n" +
+                "    }"));
+        pipeline.add(Document.parse("{\n" +
+                "        $group: {\n" +
+                "            _id: {\n" +
+                "                yearAppearance: \"$identity.yearAppearance\",\n" +
+                "                universe: \"$identity.universe\"\n" +
+                "            },\n" +
+                "            count: { $sum: 1 }\n" +
+                "        }\n" +
+                "    }"));
+        pipeline.add(Document.parse("{\n" +
+                "        $group: {\n" +
+                "            _id: {\n" +
+                "                yearAppearance: \"$_id.yearAppearance\"\n" +
+                "            },\n" +
+                "            byUniverse: {\n" +
+                "                $push: {\n" +
+                "                    universe: \"$_id.universe\",\n" +
+                "                    count: \"$count\"\n" +
+                "                }\n" +
+                "            }\n" +
+                "        }\n" +
+                "    }"));
+        return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
+                .thenApply(documents -> {
+                    return documents.stream()
+                                    .map(Document::toJson)
+                                    .map(Json::parse)
+                                    .map(jsonNode -> {
+                                        int year = jsonNode.findPath("_id").findPath("yearAppearance").asInt();
+                                        ArrayNode byUniverseNode = (ArrayNode) jsonNode.findPath("byUniverse");
+                                        Iterator<JsonNode> elements = byUniverseNode.elements();
+                                        Iterable<JsonNode> iterable = () -> elements;
+                                        List<ItemCount> byUniverse = StreamSupport.stream(iterable.spliterator(), false)
+                                                .map(node -> new ItemCount(node.findPath("universe").asText(), node.findPath("count").asInt()))
+                                                .collect(Collectors.toList());
+                                        return new YearAndUniverseStat(year, byUniverse);
+
+                                    })
+                                    .collect(Collectors.toList());
+                });
     }
 
 
