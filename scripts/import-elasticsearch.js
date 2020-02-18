@@ -18,18 +18,18 @@ async function run() {
     fs.createReadStream('./all-heroes.csv')
         .pipe(
             csv(
-                {separator: ';'}
+                {separator: ','}
             )
         ).on('data', (data) => {
             heroes.push({
-                hero_id: data.id,
+                id: data.id,
                 name: data.name,
-                description: data.description,
-                /*imageUrl: data.imageUrl,
-                backgroundImageUrl: data.backgroundImageUrl,
-                externalLink: data.externalLink,*/
-                secretIdentities: data.secretIdentities,
                 aliases: data.aliases,
+                secretIdentities: data.secretIdentities,
+                description: data.description,
+                imageUrl: data.imageUrl,
+                universe: data.universe,
+                gender: data.gender,
                 partners: data.partners
             })
         }
@@ -52,7 +52,7 @@ function createBulkInsertQuery(actors) {
     const body = actors.reduce((acc, actor) => {
 
         const { object_id, ...params } = actor
-        acc.push({ index: { _index: heroesIndexName, _type: '_doc', _id: actor.hero_id} })
+        acc.push({ index: { _index: heroesIndexName, _type: '_doc', _id: actor.id} })
         acc.push(params)
         return acc
     }, []);
