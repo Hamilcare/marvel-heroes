@@ -36,12 +36,15 @@ public class ElasticRepository {
 //         TODO
         System.out.println("size : " + size);
         System.out.println("page : " + page);
-        String query;
-        if (input.isEmpty()) {
-            query = "{\"query\":{\"size\":1000}}";
-        } else {
-            query = "{\"query\":{\"query_string\":{\"query\":\"" + input + "\",\"fields\":[\"name^4\",\"aliases^3\",\"secretIdentities^3\",\"description^2\",\"partners^1\"]}}}";
+        if(input.isEmpty()){
+            input ="*";
         }
+        String query = "{\"size\":"+size+", \"from\":"+size*(page-1)+",\"query\":{\"query_string\":{\"query\":\"" + input + "\",\"fields\":[\"name^4\",\"aliases^3\",\"secretIdentities^3\",\"description^2\",\"partners^1\"]}}}";
+//        if (input.isEmpty()) {
+//            query = "{\"size\": "+size+" \"from\":"+size*(page-1)+" \"query\":{\"size\":1000}}";
+//        } else {
+//            query = "{\"query\":{\"query_string\":{\"query\":\"" + input + "\",\"fields\":[\"name^4\",\"aliases^3\",\"secretIdentities^3\",\"description^2\",\"partners^1\"]}}}";
+//        }
         return wsClient.url(elasticConfiguration.uri + "/heroes/_search")
                 .post(Json.parse(
                         query
