@@ -1,5 +1,10 @@
 # Marvel Heroes
 
+## Authors
+
+Vivien Louradour  
+Valentin Quiédeville
+
 L'objectif de cet exerice est de développer une application web permettant de découvrir des Héros de Comics (Marvel et DC Comics).
 
 Les principales fonctionnalités de l'application sont : 
