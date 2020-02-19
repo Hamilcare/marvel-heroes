@@ -45,23 +45,34 @@ public class RedisRepository {
 
 
     private CompletionStage<Long> addHeroAsLastVisited(StatItem statItem) {
-        // TODO
-//        return CompletableFuture.completedFuture(1L);
         System.out.println(statItem);
-        StatefulRedisConnection<String,String>src = redisClient.connect();
-        long result = src.sync().zadd("LAST",0.0, statItem.toJson());
-        System.out.println("ADD OK MAGGLE");
-        src.close();
-        return CompletableFuture.completedFuture(result);
+        StatefulRedisConnection<String, String> src = redisClient.connect();
+
+        src.sync().lrem("LAST-HEROES",-1,statItem.toJson().toString());
+
+        return src.async()
+                .lpush("LAST-HEROES",  statItem.toJson().toString())
+                .thenApply(resp -> {
+                    src.close();
+                    return resp;
+                });
+
 
     }
 
     public CompletionStage<List<StatItem>> lastHeroesVisited(int count) {
         logger.info("Retrieved last heroes");
-        StatefulRedisConnection<String,String>src = redisClient.connect();
-        List<StatItem> result = src.sync().zrange("LAST", 0, count).stream().map(string -> StatItem.fromJson(string)).collect(Collectors.toList());
-        src.close();
-        return CompletableFuture.completedFuture(result);
+        StatefulRedisConnection<String, String> src = redisClient.connect();
+
+        return src.async()
+                .lrange("LAST-HEROES", 0, count-1)
+                .thenApply(resp -> {
+                    src.close();
+                    List<StatItem> lastHeroes = new ArrayList<>(count);
+                    resp.forEach(item -> lastHeroes.add(StatItem.fromJson(item)));
+                    return lastHeroes;
+                });
+
     }
 
     public CompletionStage<List<TopStatItem>> topHeroesVisited(int count) {
