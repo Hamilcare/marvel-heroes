@@ -51,8 +51,10 @@ public class HomeController extends Controller {
     }
 
     public CompletionStage<Result> searchHeroes(String q, int page) {
+        System.out.println("page Controller: "+page);
         return heroes.searchHeroes(q, SIZE, page)
                 .thenApply(results -> {
+                    System.out.println("results");
                     return ok(Json.stringify(results.toJson()));
                 });
     }

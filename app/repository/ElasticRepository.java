@@ -34,40 +34,50 @@ public class ElasticRepository {
     public CompletionStage<PaginatedResults<SearchedHero>> searchHeroes(String input, int size, int page) {
 //        return CompletableFuture.completedFuture(new PaginatedResults<>(3, 1, 1, Arrays.asList(SearchedHeroSamples.IronMan(), SearchedHeroSamples.MsMarvel(), SearchedHeroSamples.SpiderMan())));
 //         TODO
-         return wsClient.url(elasticConfiguration.uri+"/heroes/_search")
-                 .post(Json.parse(
-                         "{" +
-
-                         "  \"query\": {\n" +
-                         "    \"multi_match\" : {\n" +
-                         "      \"query\" : \"" + input + "\",\n" +
-                         "      \"fields\" : [ \"name^4\", \"aliases^3\", \"secretIdentities^3\", \"description^2\", \"partners^1\"] \n" +
-                         "    }\n" +
-                         "  }" +
-                         "}"
-                 ))
-                 .thenApply(response -> {
+        System.out.println("size : " + size);
+        System.out.println("page : " + page);
+        String query;
+        if (input.isEmpty()) {
+            query = "{\"query\":{\"size\":1000}}";
+        } else {
+            query = "{\"query\":{\"query_string\":{\"query\":\"" + input + "\",\"fields\":[\"name^4\",\"aliases^3\",\"secretIdentities^3\",\"description^2\",\"partners^1\"]}}}";
+        }
+        return wsClient.url(elasticConfiguration.uri + "/heroes/_search")
+                .post(Json.parse(
+                        query
+                ))
+                .thenApply(response -> {
                     Iterator<JsonNode> it = response.asJson().get("hits").get("hits").iterator();
                     List<SearchedHero> myResearchedHeroes = new ArrayList<>();
-                     while(it.hasNext()){
-                         JsonNode next = it.next().get("_source");
-                         System.out.println(next);
+                    int total = Integer.parseInt(response.asJson().get("hits").get("total").get("value").toString());
+                    while (it.hasNext()) {
+                        JsonNode next = it.next().get("_source");
+//                         System.out.println(next);
                         myResearchedHeroes.add(SearchedHero.fromJson(next));
                     }
-                     return new PaginatedResults<SearchedHero>(5,1,1,myResearchedHeroes);
+                    return new PaginatedResults<SearchedHero>(total, page, total / size, myResearchedHeroes);
 
-                 });
+                });
 
 
     }
 
     public CompletionStage<List<SearchedHero>> suggest(String input) {
-        return CompletableFuture.completedFuture(Arrays.asList(SearchedHeroSamples.IronMan(), SearchedHeroSamples.MsMarvel(), SearchedHeroSamples.SpiderMan()));
+//        return CompletableFuture.completedFuture(Arrays.asList(SearchedHeroSamples.IronMan(), SearchedHeroSamples.MsMarvel(), SearchedHeroSamples.SpiderMan()));
         // TODO
-        // return wsClient.url(elasticConfiguration.uri + "...")
-        //         .post(Json.parse("{ ... }"))
-        //         .thenApply(response -> {
-        //             return ...
-        //         });
+
+        return wsClient.url(elasticConfiguration.uri + "/heroes/_search")
+                .post(Json.parse("{\"suggest\":{\"heroes-suggest\":{\"prefix\":\"" + input + "\",\"completion\":{\"field\":\"suggest\",\"size\":5}}}}"))
+                .thenApply(response -> {
+
+                    Iterator<JsonNode> it = response.asJson().get("suggest").get("heroes-suggest").get(0).get("options").iterator();
+                    List<SearchedHero> myResearchedHeroes = new ArrayList<>();
+                    while (it.hasNext()) {
+                        JsonNode next = it.next().get("_source");
+
+                        myResearchedHeroes.add(SearchedHero.fromJson(next));
+                    }
+                    return (myResearchedHeroes);
+                });
     }
 }
