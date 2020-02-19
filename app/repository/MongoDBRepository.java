@@ -2,22 +2,21 @@ package repository;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.mongodb.client.model.*;
 import com.mongodb.reactivestreams.client.MongoCollection;
 import com.mongodb.reactivestreams.client.MongoDatabase;
 import models.Hero;
 import models.ItemCount;
 import models.YearAndUniverseStat;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import play.libs.Json;
 import utils.HeroSamples;
 import utils.*;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.stream.Collectors;
@@ -33,43 +32,67 @@ public class MongoDBRepository {
         this.heroesCollection = mongoDatabase.getCollection("heroes");
     }
 
-
     public CompletionStage<Optional<Hero>> heroById(String heroId) {
-//        return HeroSamples.staticHero(heroId);
-         String query = "{id: \"" + heroId + "\"}";
-         Document document = Document.parse(query);
-         return ReactiveStreamsUtils.fromSinglePublisher(heroesCollection.find(document).first())
+        Bson filter = Filters.eq("id", heroId);
+
+        return ReactiveStreamsUtils.fromSinglePublisher(heroesCollection.find(filter).first())
                  .thenApply(result -> Optional.ofNullable(result).map(Document::toJson).map(Hero::fromJson));
     }
 
     public CompletionStage<List<YearAndUniverseStat>> countByYearAndUniverse() {
-        List<Document> pipeline = new ArrayList<>();
-        pipeline.add(Document.parse("{\n" +
-                "        $match: { \"identity.yearAppearance\": { $ne: null } }\n" +
-                "    }"));
-        pipeline.add(Document.parse("{\n" +
-                "        $group: {\n" +
-                "            _id: {\n" +
-                "                yearAppearance: \"$identity.yearAppearance\",\n" +
-                "                universe: \"$identity.universe\"\n" +
-                "            },\n" +
-                "            count: { $sum: 1 }\n" +
-                "        }\n" +
-                "    }"));
-        pipeline.add(Document.parse("{\n" +
-                "        $group: {\n" +
-                "            _id: {\n" +
-                "                yearAppearance: \"$_id.yearAppearance\"\n" +
-                "            },\n" +
-                "            byUniverse: {\n" +
-                "                $push: {\n" +
-                "                    universe: \"$_id.universe\",\n" +
-                "                    count: \"$count\"\n" +
-                "                }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }"));
-        return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
+        HashMap groupFields1 = new HashMap() {{
+            put("yearAppearance", "$identity.yearAppearance");
+            put("universe", "$identity.universe");
+        }};
+
+        HashMap groupFields2 = new HashMap() {{
+            put("yearAppearance", "$_id.yearAppearance");
+        }};
+
+        HashMap groupFields3 = new HashMap() {{
+            put("universe", "$_id.universe");
+            put("count", "$count");
+        }};
+
+        List<Bson> aggregates = Arrays.asList(
+                Aggregates.match(Filters.ne("identity.yearAppearance", null)),
+                Aggregates.group(groupFields1, Accumulators.sum("count", 1)),
+                Aggregates.group(groupFields2,
+                    Accumulators.addToSet("byUniverse", groupFields3)
+                )
+        );
+
+        //Requête "façon MongoDB CLI"
+
+//        List<Document> pipeline = new ArrayList<>();
+//        pipeline.add(Document.parse("{\n" +
+//                "        $match: { \"identity.yearAppearance\": { $ne: null } }\n" +
+//                "    }"));
+//        pipeline.add(Document.parse("{\n" +
+//                "        $group: {\n" +
+//                "            _id: {\n" +
+//                "                yearAppearance: \"$identity.yearAppearance\",\n" +
+//                "                universe: \"$identity.universe\"\n" +
+//                "            },\n" +
+//                "            count: { $sum: 1 }\n" +
+//                "        }\n" +
+//                "    }"));
+//        pipeline.add(Document.parse("{\n" +
+//                "        $group: {\n" +
+//                "            _id: {\n" +
+//                "                yearAppearance: \"$_id.yearAppearance\"\n" +
+//                "            },\n" +
+//                "            byUniverse: {\n" +
+//                "                $push: {\n" +
+//                "                    universe: \"$_id.universe\",\n" +
+//                "                    count: \"$count\"\n" +
+//                "                }\n" +
+//                "            }\n" +
+//                "        }\n" +
+//                "    }"));
+
+
+        return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(aggregates))
                 .thenApply(documents -> {
                     return documents.stream()
                                     .map(Document::toJson)
@@ -92,28 +115,15 @@ public class MongoDBRepository {
 
     public CompletionStage<List<ItemCount>> topPowers(int top) {
 //        return CompletableFuture.completedFuture(new ArrayList<>());
+        System.out.println("COUCOU");
+        List<Bson> aggregates = Arrays.asList(
+            Aggregates.unwind("$powers"),
+            Aggregates.group("$powers", Accumulators.sum("count", 1)),
+            Aggregates.sort(Sorts.descending("count")),
+            Aggregates.limit(5)
+        );
 
-         List<Document> pipeline = new ArrayList<>();
-         pipeline.add(Document.parse("{\n" +
-                 "        $unwind: {\n" +
-                 "            path: \"$powers\"\n" +
-                 "        }\n" +
-                 "    }"));
-        pipeline.add(Document.parse("{\n" +
-                "        $group: {\n" +
-                "            _id: \"$powers\",\n" +
-                "            count: { $sum: 1 }\n" +
-                "        }\n" +
-                "    }"));
-        pipeline.add(Document.parse("{\n" +
-                "        $sort: {\n" +
-                "            count: -1\n" +
-                "        }\n" +
-                "    }"));
-        pipeline.add(Document.parse("{\n" +
-                "        $limit: 5\n" +
-                "    }"));
-         return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
+         return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(aggregates))
                  .thenApply(documents -> {
                      return documents.stream()
                              .map(Document::toJson)
@@ -126,16 +136,11 @@ public class MongoDBRepository {
     }
 
     public CompletionStage<List<ItemCount>> byUniverse() {
-//        return CompletableFuture.completedFuture(new ArrayList<>());
-         List<Document> pipeline = new ArrayList<>();
-         String query = "{\n" +
-                 "        $group: {\n" +
-                 "            _id: \"$identity.universe\",\n" +
-                 "            count: { $sum: 1}\n" +
-                 "        }\n" +
-                 "    }";
-         pipeline.add(Document.parse(query));
-         return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(pipeline))
+        List<Bson> aggregates = Arrays.asList(
+                Aggregates.group("$identity.universe", Accumulators.sum("count", 1))
+        );
+
+        return ReactiveStreamsUtils.fromMultiPublisher(heroesCollection.aggregate(aggregates))
                  .thenApply(documents -> {
                      return documents.stream()
                              .map(Document::toJson)
