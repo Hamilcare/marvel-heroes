@@ -1,6 +1,8 @@
 package repository;
 
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.StatefulRedisConnection;
 import models.StatItem;
 import models.TopStatItem;
 import play.Logger;
@@ -8,10 +10,12 @@ import utils.StatItemSamples;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.stream.Collectors;
 
 @Singleton
 public class RedisRepository {
@@ -42,14 +46,22 @@ public class RedisRepository {
 
     private CompletionStage<Long> addHeroAsLastVisited(StatItem statItem) {
         // TODO
-        return CompletableFuture.completedFuture(1L);
+//        return CompletableFuture.completedFuture(1L);
+        System.out.println(statItem);
+        StatefulRedisConnection<String,String>src = redisClient.connect();
+        long result = src.sync().zadd("LAST",0.0, statItem.toJson());
+        System.out.println("ADD OK MAGGLE");
+        src.close();
+        return CompletableFuture.completedFuture(result);
+
     }
 
     public CompletionStage<List<StatItem>> lastHeroesVisited(int count) {
         logger.info("Retrieved last heroes");
-        // TODO
-        List<StatItem> lastsHeroes = Arrays.asList(StatItemSamples.IronMan(), StatItemSamples.Thor(), StatItemSamples.CaptainAmerica(), StatItemSamples.BlackWidow(), StatItemSamples.MsMarvel());
-        return CompletableFuture.completedFuture(lastsHeroes);
+        StatefulRedisConnection<String,String>src = redisClient.connect();
+        List<StatItem> result = src.sync().zrange("LAST", 0, count).stream().map(string -> StatItem.fromJson(string)).collect(Collectors.toList());
+        src.close();
+        return CompletableFuture.completedFuture(result);
     }
 
     public CompletionStage<List<TopStatItem>> topHeroesVisited(int count) {
