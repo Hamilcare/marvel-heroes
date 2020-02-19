@@ -43,8 +43,6 @@ public class MongoDBRepository {
     }
 
     public CompletionStage<List<YearAndUniverseStat>> countByYearAndUniverse() {
-//        return CompletableFuture.completedFuture(new ArrayList<>());
-
         List<Document> pipeline = new ArrayList<>();
         pipeline.add(Document.parse("{\n" +
                 "        $match: { \"identity.yearAppearance\": { $ne: null } }\n" +
